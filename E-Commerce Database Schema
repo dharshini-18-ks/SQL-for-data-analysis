@@ -1,0 +1,129 @@
+-- Creates a table to store customer information.
+CREATE TABLE Customer (
+    CustomerID INT PRIMARY KEY,
+    FirstName VARCHAR(50),
+    LastName VARCHAR(50),
+    Email VARCHAR(100),
+    City VARCHAR(50),
+    Country VARCHAR(50)
+);
+
+-- Creates a table to store product details.
+CREATE TABLE Product (
+    ProductID INT PRIMARY KEY,
+    ProductName VARCHAR(100),
+    Category VARCHAR(50),
+    Price DECIMAL(10,2)
+);
+
+-- Creates a table to store order details.
+CREATE TABLE Orders (
+    OrderID INT PRIMARY KEY,
+    CustomerID INT,
+    OrderDate DATE,
+    TotalAmount DECIMAL(10,2),
+    FOREIGN KEY(CustomerID) REFERENCES Customer(CustomerID)
+);
+
+-- Creates a table to link orders with products.
+CREATE TABLE OrderItem (
+    OrderItemID INT PRIMARY KEY,
+    OrderID INT,
+    ProductID INT,
+    Quantity INT,
+    -- Fix: The FOREIGN KEY now correctly references the 'Orders' table.
+    FOREIGN KEY (OrderID) REFERENCES Orders(OrderID),
+    FOREIGN KEY (ProductID) REFERENCES Product(ProductID)
+);
+
+--Count the number of orders per customer and lists them most to least
+SELECT c.FirstName, c.LastName,
+  COUNT(o.OrderID) AS NumberOfOrders
+FROM Customer AS c
+JOIN Orders AS o
+  ON c.CustomerID = o.CustomerID
+GROUP BY
+  c.CustomerID,
+  c.FirstName,
+  c.LastName
+ORDER BY
+  NumberOfOrders DESC;
+
+--Calculates the total revenue for each product
+SELECT
+  p.ProductName,
+  SUM(oi.Quantity * p.Price) AS TotalRevenue
+FROM OrderItem AS oi
+JOIN Product AS p
+  ON oi.ProductID = p.ProductID
+GROUP BY
+  p.ProductName
+ORDER BY
+  TotalRevenue DESC;
+
+--Finds all customers who have not placed any orders.
+SELECT c.FirstName, c.LastName
+FROM Customer AS c
+LEFT JOIN Orders AS o
+  ON c.CustomerID = o.CustomerID
+WHERE
+  o.OrderID IS NULL;
+
+--Finds the names of all customers who have purchased a 'Laptop'
+SELECT FirstName, LastName FROM Customer
+WHERE CustomerID IN (
+    SELECT CustomerID FROM Orders
+    WHERE OrderID IN (
+        SELECT OrderID FROM OrderItem
+        WHERE ProductID = (
+            SELECT ProductID FROM Product
+            WHERE ProductName = 'Laptop'
+          )
+      )
+  );
+
+--This view summarizes the total quantity sold and revenue for each product, making it easy to identify bestsellers.
+--create view
+CREATE VIEW TopSellingProducts AS
+SELECT
+  p.ProductName,
+  SUM(oi.Quantity) AS TotalQuantitySold,
+  SUM(oi.Quantity * p.Price) AS TotalRevenue
+FROM OrderItem AS oi
+JOIN Product AS p
+  ON oi.ProductID = p.ProductID
+GROUP BY
+  p.ProductName
+ORDER BY
+  TotalQuantitySold DESC;
+
+--analyze with the view
+SELECT
+  *
+FROM TopSellingProducts
+LIMIT 5;
+
+--This view combines customer details with their total number of orders and total spending, useful for customer segmentation and marketing
+--create view
+CREATE VIEW CustomerOrderSummary AS
+SELECT
+  c.CustomerID,
+  c.FirstName,
+  c.LastName,
+  COUNT(o.OrderID) AS NumberOfOrders,
+  SUM(o.TotalAmount) AS TotalSpent
+FROM Customer AS c
+JOIN Orders AS o
+  ON c.CustomerID = o.CustomerID
+GROUP BY
+  c.CustomerID,
+  c.FirstName,
+  c.LastName;
+
+--analyze with the view
+SELECT
+  *
+FROM CustomerOrderSummary
+ORDER BY
+  TotalSpent DESC
+LIMIT 10;
